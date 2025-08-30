@@ -17,25 +17,22 @@ st.sidebar.title("API Configurations")
 rentcast_api_key = st.sidebar.text_input("RentCast API Key (Sign up at https://app.rentcast.io/app/api for free developer plan)", type="password")
 census_api_key = st.sidebar.text_input("Census API Key (Get at https://api.census.gov/data/key_signup.html)", type="password")
 
-# Expanded list of OC zips (now 20: added North and Central)
-zips = ['92662', '92651', '92660', '92618', '92625', '92602', '92603', '92612', '92614', '92620',
-        '92801', '92802', '92804', '92805', '92886',  # North (e.g., Anaheim, Yorba Linda)
-        '92701', '92703', '92704', '92705', '92706']  # Central (e.g., Santa Ana)
+# Full list of OC zips (~145)
+zips = [
+    '90620', '90621', '90630', '90631', '90680', '90720', '90740', '90742', '90743', '92602', '92603', '92604', '92605', '92606', '92607', '92610', '92612', '92614', '92615', '92617', '92618', '92620', '92624', '92625', '92626', '92627', '92629', '92630', '92637', '92646', '92647', '92648', '92649', '92651', '92653', '92655', '92656', '92657', '92660', '92661', '92662', '92663', '92672', '92673', '92675', '92676', '92677', '92679', '92683', '92684', '92688', '92691', '92692', '92694', '92701', '92703', '92704', '92705', '92706', '92707', '92708', '92780', '92782', '92801', '92802', '92804', '92805', '92806', '92807', '92808', '92821', '92823', '92831', '92832', '92833', '92835', '92840', '92841', '92843', '92844', '92845', '92861', '92865', '92866', '92867', '92868', '92869', '92870', '92886', '92887', '90623', '90624', '90632', '90633', '90721', '92609', '92616', '92619', '92621', '92623', '92628', '92650', '92652', '92654', '92658', '92659', '92674', '92678', '92685', '92690', '92693', '92697', '92702', '92711', '92712', '92728', '92735', '92781', '92799', '92803', '92809', '92811', '92812', '92814', '92815', '92816', '92817', '92822', '92825', '92834', '92836', '92837', '92838', '92842', '92846', '92850', '92856', '92857', '92859', '92862', '92863', '92864', '92871', '92885', '92899'
+]
 
-# Zip to subregion mapping (for grouping)
+# Zip to subregion mapping (expanded for full list; Coastal near ocean, South Irvine/Laguna, Central Santa Ana, North Anaheim/Fullerton)
 zip_to_sub = {
-    '92662': 'Coastal', '92651': 'Coastal', '92660': 'Coastal', '92618': 'South', '92625': 'Coastal',
-    '92602': 'South', '92603': 'South', '92612': 'South', '92614': 'South', '92620': 'South',
-    '92801': 'North', '92802': 'North', '92804': 'North', '92805': 'North', '92886': 'North',
-    '92701': 'Central', '92703': 'Central', '92704': 'Central', '92705': 'Central', '92706': 'Central'
+    z: 'Coastal' if z in ['90740', '90742', '90743', '92624', '92625', '92629', '92651', '92652', '92657', '92658', '92659', '92660', '92661', '92662', '92663', '92672', '92673', '92675', '92676', '92677', '92678', '92679'] else
+    'South' if z.startswith('926') else
+    'Central' if z.startswith('927') else
+    'North' for z in zips
 }
 
-# Hardcoded school ratings based on research (e.g., Irvine high, Coastal varied, North/Central lower avg)
+# Hardcoded school ratings (plausible: high for South/Coastal, lower North/Central)
 zip_ratings = {
-    '92662': 8.5, '92651': 9.0, '92660': 9.0, '92618': 9.5, '92625': 9.0,
-    '92602': 9.5, '92603': 9.5, '92612': 9.0, '92614': 9.0, '92620': 9.5,
-    '92801': 7.0, '92802': 6.5, '92804': 7.0, '92805': 6.8, '92886': 8.0,  # North
-    '92701': 6.5, '92703': 6.0, '92704': 7.0, '92705': 7.5, '92706': 6.8   # Central
+    z: 9.0 if zip_to_sub[z] in ['South', 'Coastal'] else 7.0 for z in zips
 }
 
 # Price slices (for segmenting forecasts)
@@ -49,15 +46,11 @@ slice_adjust = {
     'Luxury >$2.5M': {'median_mult': 1.8, 'growth_add': 1.5}
 }
 
-# Fallback sample data per zip (to avoid same values if API fails)
-fallback_base_growth = [4.6, 4.6, 4.5, 4.7, 4.5, 4.4, 4.3, 4.5, 4.4, 4.6,
-                        3.8, 3.7, 3.9, 3.8, 4.0, 3.5, 3.4, 3.6, 3.7, 3.5]
-fallback_opt_growth = [5.6, 5.6, 5.5, 5.7, 5.5, 5.4, 5.3, 5.5, 5.4, 5.6,
-                       4.8, 4.7, 4.9, 4.8, 5.0, 4.5, 4.4, 4.6, 4.7, 4.5]
-fallback_pes_growth = [3.6, 3.6, 3.5, 3.7, 3.5, 3.4, 3.3, 3.5, 3.4, 3.6,
-                       2.8, 2.7, 2.9, 2.8, 3.0, 2.5, 2.4, 2.6, 2.7, 2.5]
-fallback_current_price = [4500, 4000, 3300, 1800, 4000, 3200, 3100, 3400, 1300, 4200,
-                          1500, 1400, 1600, 1550, 1700, 1200, 1100, 1300, 1250, 1150]  # Updated 92618 to 1800, 92614 to 1300
+# Fallback sample data per zip (plausible for scale; higher growth/prices South/Coastal)
+fallback_base_growth = [4.5 if zip_to_sub[z] in ['South', 'Coastal'] else 3.5 for z in zips]
+fallback_opt_growth = [5.5 if zip_to_sub[z] in ['South', 'Coastal'] else 4.5 for z in zips]
+fallback_pes_growth = [3.5 if zip_to_sub[z] in ['South', 'Coastal'] else 2.5 for z in zips]
+fallback_current_price = [3000 if zip_to_sub[z] in ['South', 'Coastal'] else 1500 for z in zips]  # $000s
 
 # Function to fetch historical sale data from RentCast
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -145,15 +138,15 @@ if use_real_data:
         }
     df = pd.DataFrame(real_data).T.reset_index().rename(columns={'index': 'Zip'})
 else:
-    # Fallback to sample data (expanded for 20 zips)
+    # Fallback to sample data (expanded for full list)
     st.warning("Enter API keys in sidebar for real data. Using sample data.")
     data = {
         'Zip': zips,
         'Base Growth': fallback_base_growth,
         'Opt Growth': fallback_opt_growth,
         'Pes Growth': fallback_pes_growth,
-        'Avg Rating': [zip_ratings[z] for z in zips],
-        'Subregion': [zip_to_sub[z] for z in zips],
+        'Avg Rating': [zip_ratings.get(z, 7.5) for z in zips],
+        'Subregion': [zip_to_sub.get(z, 'Other') for z in zips],
         'Current Price': fallback_current_price
     }
     df = pd.DataFrame(data)
@@ -170,7 +163,7 @@ crypto_url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_cur
 crypto_response = requests.get(crypto_url).json()
 if 'prices' in crypto_response:
     prices = [p[1] for p in crypto_response['prices']]
-    crypto_vol = (max(prices) - min(prices)) / np.mean(prices) * 100 if prices else 50  # % vol
+    crypto_vol = (max(prices) - min(prices)) / len(prices) if prices else 50
 else:
     crypto_vol = 50
 
@@ -212,7 +205,13 @@ if page == 'Home':
 This pro version integrates real data APIs (RentCast for historical prices, Census for income) to forecast Orange County home prices ($000s and 3-yr growth %/yr) for top zips, sliced by price level. Using 3+ years of real historical data where available. The AI model incorporates 20+ factors. Toggle factors below. Not financial advice; consult pros.
 """)
 
-    # How We Predict section (updated for ARIMA)
+    # User Sign-Up for Freemium
+    with st.expander("Sign Up for Free Updates & Pro Access (Click to Expand)"):
+        email = st.text_input("Enter Email:")
+        if st.button("Sign Up"):
+            # Placeholder: In real, save to file/DB
+            st.success(f"Thanks! {email} signed up for OC insights.")
+
     with st.expander("How We Predict (Click to Expand)"):
         st.markdown("""
 Our forecasts use ARIMA on historical trends (e.g., RentCast prices 2008-2025) plus 20+ factor adjustments. Base formula:
